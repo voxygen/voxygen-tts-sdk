@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "voxygen-tts"
+version = "1.4.0"
+description = "Python HTTP client for Voxygen TTS API"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+keywords = ["voxygen", "tts", "client"]
+dependencies = [
+  "urllib3-future>=2",
+]
+authors = [{ name = "Voxygen" }]
+maintainers = [{ name = "Voxygen" }]
+
+[project.scripts]
+voxygen-speak = "speak:main"
+
+[tool.setuptools]
+py-modules = ["speak"]
+
+[tool.setuptools.packages.find]
+include = ["voxygen*"]

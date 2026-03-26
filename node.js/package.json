@@ -1,0 +1,36 @@
+{
+  "name": "@voxygen/tts",
+  "version": "1.4.1",
+  "description": "Official Node.js client for Voxygen Text-to-Speech API services.",
+  "keywords": [
+    "tts",
+    "text-to-speech",
+    "voxygen",
+    "speech",
+    "audio"
+  ],
+  "license": "MIT",
+  "author": "Voxygen",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "./tts/Client.mjs",
+  "exports": {
+    ".": "./tts/Client.mjs"
+  },
+  "bin": {
+    "voxygen-speak": "./speak.mjs"
+  },
+  "files": [
+    "tts",
+    "speak.mjs",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@voxygen/tts": "^1.4.1"
+  }
+}
