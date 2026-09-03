@@ -153,7 +153,7 @@ class Client:
         while response.status == http.HTTPStatus.SERVICE_UNAVAILABLE and retries < self._max_retries:
             self._connection.close()
             time.sleep(self._retry_after)
-            self._connection.request('POST', self._url.path, body=request, headers=httpheaders)
+            self._connection.request('POST', self._url.path, body=request, headers=httpheaders, preload_content=False)
             response = self._connection.getresponse()
             retries += 1
         return response
