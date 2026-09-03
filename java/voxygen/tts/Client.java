@@ -1,6 +1,7 @@
 package voxygen.tts;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.MalformedURLException;
@@ -37,6 +38,7 @@ public class Client implements AutoCloseable {
         JSON,
         URL_ENCODED
     }
+
     private final String _token;
     private final URI _uri;
     private int _max_retries;
@@ -82,15 +84,15 @@ public class Client implements AutoCloseable {
             return;
         }
         if ("https".equalsIgnoreCase(_uri.getScheme())) {
+            _connection = (HttpsURLConnection) _uri.toURL().openConnection();
             try {
                 InetAddress ip = InetAddress.getByName(_uri.getHost());
                 if (ip.isSiteLocalAddress() || ip.isLoopbackAddress()) {
-                    disableCertificateValidation();
+                    disableCertificateValidation((HttpsURLConnection) _connection);
                 }
             } catch (UnknownHostException | NoSuchAlgorithmException | KeyManagementException e) {
                 // Do nothing
             }
-            _connection = (HttpsURLConnection) _uri.toURL().openConnection();
         } else if ("http".equalsIgnoreCase(_uri.getScheme())) {
             _connection = (HttpURLConnection) _uri.toURL().openConnection();
         } else {
@@ -112,12 +114,17 @@ public class Client implements AutoCloseable {
         }
     }
 
-    /* code to disable hostname and X509 certification validation (use for local network only) */
-    private static void disableCertificateValidation() throws NoSuchAlgorithmException, KeyManagementException {
+    /*
+     * code to disable hostname and X509 certification validation (use for local
+     * network only)
+     */
+    private static void disableCertificateValidation(HttpsURLConnection connection)
+            throws NoSuchAlgorithmException, KeyManagementException {
         HttpsURLConnection.setDefaultHostnameVerifier((arg0, arg1) -> true);
         SSLContext ctx = SSLContext.getInstance("TLS");
-        ctx.init(null, new TrustManager[]{new NullX509TrustManager()}, null);
-        SSLContext.setDefault(ctx);
+        ctx.init(null, new TrustManager[] { new NullX509TrustManager() }, null);
+        connection.setHostnameVerifier((hostname, session) -> true);
+        connection.setSSLSocketFactory(ctx.getSocketFactory());
     }
 
     private static class NullX509TrustManager implements X509TrustManager {
@@ -134,11 +141,14 @@ public class Client implements AutoCloseable {
         }
     }
 
-    /* Build URL request query string.
-        Keyword arguments:
-        arguments -- a map of TTS control parameters e.g. {'voice':'Jenny','text':'Hello world!',...}
-        */
-    public Map<String, String> buildRequest(Map<String, String> arguments) throws NoSuchAlgorithmException, InvalidKeyException {
+    /*
+     * Build URL request query string.
+     * Keyword arguments:
+     * arguments -- a map of TTS control parameters e.g.
+     * {'voice':'Jenny','text':'Hello world!',...}
+     */
+    public Map<String, String> buildRequest(Map<String, String> arguments)
+            throws NoSuchAlgorithmException, InvalidKeyException {
         Map<String, String> query = new HashMap<>();
         // initialize query from host url
         String url_query = _uri.getQuery();
@@ -169,8 +179,7 @@ public class Client implements AutoCloseable {
             case JSON -> {
                 // build JSON representation
                 JSONObject jsonQuery = new JSONObject(request);
-                body = jsonQuery.toString().getBytes();
-                // NOTE: rfc8259 section-8.1 "JSON text exchanged between systems that are not part of a closed ecosystem MUST be encoded using UTF-8"
+                body = jsonQuery.toString().getBytes(StandardCharsets.UTF_8);
                 _connection.setRequestProperty("Content-Type", "application/json");
             }
             case URL_ENCODED -> {
@@ -184,17 +193,19 @@ public class Client implements AutoCloseable {
                             .append("=")
                             .append(URLEncoder.encode(entry.getValue(), StandardCharsets.UTF_8));
                 }
-                body = queryString.toString().getBytes();
+                body = queryString.toString().getBytes(StandardCharsets.UTF_8);
                 _connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=utf-8");
             }
             default -> throw new IllegalArgumentException("unsupported body type");
         }
         switch (_accept_type) {
             case AUDIO -> _connection.setRequestProperty("Accept", "audio/*; q=1.0, application/octet-stream; q=0.8, */*; q=0.1");
-            case JSON ->  _connection.setRequestProperty("Accept", "application/json, */*; q=0.1");
+            case JSON -> _connection.setRequestProperty("Accept", "application/json, */*; q=0.1");
             default -> throw new IllegalArgumentException("unsupported accept content type");
         }
-        _connection.getOutputStream().write(body);
+        try (OutputStream os = _connection.getOutputStream()) {
+            os.write(body);
+        }
         var retries = 0;
         while (_connection.getResponseCode() == HttpURLConnection.HTTP_UNAVAILABLE && retries < _max_retries) {
             close();
@@ -204,7 +215,9 @@ public class Client implements AutoCloseable {
                 Thread.currentThread().interrupt();
             }
             open();
-            _connection.getOutputStream().write(body);
+            try (OutputStream os = _connection.getOutputStream()) {
+                os.write(body);
+            }
             retries += 1;
         }
     }
